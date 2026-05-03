@@ -1,0 +1,48 @@
+========================================
+  MERCADO LIQUIDA — Como Testar
+========================================
+
+WINDOWS:
+  Clique duas vezes em: INICIAR_WINDOWS.bat
+
+MAC / LINUX:
+  Abra o terminal nesta pasta e execute:
+  ./INICIAR_MAC_LINUX.sh
+
+Depois abra o navegador em:
+  http://localhost:5000
+
+========================================
+  PÁGINAS DISPONÍVEIS
+========================================
+
+  http://localhost:5000           → Página do produto
+  http://localhost:5000/login     → Login / Cadastro
+  http://localhost:5000/carrinho  → Carrinho
+  http://localhost:5000/checkout  → Finalizar compra
+  http://localhost:5000/admin/pedidos → Painel de pedidos
+
+========================================
+  GATEWAY DE PAGAMENTO (InvctusPay)
+========================================
+
+Link de TESTE configurado:
+  https://go.invictuspay.app.br/m387smwrlf_mpzmtfsx5d
+
+Para trocar pelo link de PRODUCAO:
+  Abra app.py e edite a linha:
+  INVICTUS_CHECKOUT_URL = "https://go.invictuspay.app.br/SEU_LINK_AQUI"
+
+Webhook para configurar no painel da InvctusPay:
+  https://seusite.com/webhook/invictuspay
+
+========================================
+  FLUXO DO TESTE
+========================================
+
+1. Acesse http://localhost:5000
+2. Clique em "Comprar agora"
+3. Preencha os dados (qualquer dado para teste)
+4. Será redirecionado para o checkout da InvctusPay
+5. Pedido fica salvo em http://localhost:5000/admin/pedidos
+
