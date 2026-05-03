@@ -1,80 +1,134 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Pedido confirmado – Mercado Liquida</title>
-  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Lexend',sans-serif;background:#f0f0f0;min-height:100vh;display:flex;flex-direction:column}
-    .nav{background:#1a2744;color:#fff;padding:0 2rem;height:54px;display:flex;align-items:center;gap:8px}
-    .nav-logo{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
-    .nav-logo-icon{width:26px;height:26px;background:#fff;border-radius:5px;display:flex;align-items:center;justify-content:center}
-    .center{flex:1;display:flex;align-items:center;justify-content:center;padding:2rem}
-    .card{background:#fff;border-radius:14px;padding:2.5rem 2rem;max-width:480px;width:100%;text-align:center}
-    .check{width:72px;height:72px;background:#f0fdf4;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.2rem}
-    h1{font-size:22px;font-weight:700;color:#1a2744;margin-bottom:8px}
-    .sub{font-size:14px;color:#666;line-height:1.6;margin-bottom:20px}
-    .pedido-id{background:#f8f8f8;border-radius:7px;padding:10px 16px;font-size:13px;color:#555;margin-bottom:20px}
-    .pedido-id strong{color:#1a2744;font-size:15px;display:block;margin-top:4px}
-    .steps{text-align:left;border-top:1px solid #eee;padding-top:16px;display:flex;flex-direction:column;gap:12px}
-    .step{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:#444}
-    .step-num{width:22px;height:22px;border-radius:50%;background:#1a2744;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
-    .btn-home{display:inline-block;margin-top:20px;padding:12px 28px;background:#1a2744;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;transition:background .2s}
-    .btn-home:hover{background:#243560}
-  </style>
-</head>
-<body>
+import sqlite3
+import hashlib
+import os
+from datetime import datetime
 
-<nav class="nav">
-  <div class="nav-logo">
-    <div class="nav-logo-icon">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a2744" stroke-width="2.5">
-        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
-        <line x1="3" y1="6" x2="21" y2="6"/>
-        <path d="M16 10a4 4 0 01-8 0"/>
-      </svg>
-    </div>
-    Mercado Liquida
-  </div>
-</nav>
+DB_PATH = "pedidos.db"
 
-<div class="center">
-  <div class="card">
-    <div class="check">
-      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5">
-        <path d="M20 6L9 17l-5-5"/>
-      </svg>
-    </div>
-    <h1>Pedido realizado! 🎉</h1>
-    <p class="sub">Obrigado pela sua compra! Você será redirecionado para o pagamento. Após a confirmação, seu produto será enviado em até 5 dias úteis.</p>
+def get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-    {% if pedido_id %}
-    <div class="pedido-id">
-      Número do pedido
-      <strong>#{{ pedido_id }}</strong>
-    </div>
-    {% endif %}
+def init_db():
+    with get_conn() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS pedidos (
+            id TEXT PRIMARY KEY, nome TEXT NOT NULL, email TEXT NOT NULL,
+            telefone TEXT, cpf TEXT, quantidade INTEGER DEFAULT 1,
+            total REAL NOT NULL, status TEXT DEFAULT 'aguardando_pagamento', criado_em TEXT NOT NULL)""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL, senha_hash TEXT, google_id TEXT,
+            avatar_url TEXT, criado_em TEXT NOT NULL)""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS carrinho (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, usuario_id INTEGER NOT NULL,
+            produto_id TEXT NOT NULL, nome TEXT NOT NULL, preco REAL NOT NULL,
+            preco_antigo REAL NOT NULL, quantidade INTEGER DEFAULT 1,
+            adicionado_em TEXT NOT NULL, FOREIGN KEY(usuario_id) REFERENCES usuarios(id))""")
+        conn.commit()
+    print("✅ Banco iniciado")
 
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <span><strong>Pagamento confirmado</strong> — você receberá um e-mail de confirmação.</span>
-      </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <span><strong>Separação</strong> — seu pedido será preparado e embalado com cuidado.</span>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <span><strong>Entrega</strong> — estimativa de 3 a 5 dias úteis após o pagamento.</span>
-      </div>
-    </div>
+def hash_senha(senha):
+    salt = os.environ.get("SALT","ml_salt_2025")
+    return hashlib.sha256(f"{salt}{senha}".encode()).hexdigest()
 
-    <a href="/" class="btn-home">Continuar comprando</a>
-  </div>
-</div>
+def criar_usuario(nome, email, senha=None, google_id=None, avatar_url=None):
+    senha_hash = hash_senha(senha) if senha else None
+    try:
+        with get_conn() as conn:
+            conn.execute("""INSERT INTO usuarios (nome,email,senha_hash,google_id,avatar_url,criado_em)
+                VALUES (?,?,?,?,?,?)""", (nome, email, senha_hash, google_id, avatar_url,
+                datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
+            conn.commit()
+        return buscar_usuario_por_email(email)
+    except Exception as e:
+        if "UNIQUE" in str(e): return None
+        raise
 
-</body>
-</html>
+def buscar_usuario_por_email(email):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM usuarios WHERE email=?", (email,)).fetchone()
+    return dict(row) if row else None
+
+def buscar_usuario_por_id(uid):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM usuarios WHERE id=?", (uid,)).fetchone()
+    return dict(row) if row else None
+
+def buscar_usuario_por_google(gid):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM usuarios WHERE google_id=?", (gid,)).fetchone()
+    return dict(row) if row else None
+
+def verificar_senha(email, senha):
+    u = buscar_usuario_por_email(email)
+    if u and u.get("senha_hash") == hash_senha(senha): return u
+    return None
+
+def atualizar_google_id(uid, google_id, avatar_url=None):
+    with get_conn() as conn:
+        conn.execute("UPDATE usuarios SET google_id=?,avatar_url=? WHERE id=?", (google_id, avatar_url, uid))
+        conn.commit()
+
+PRECO=54.95; PRECO_ANTIGO=71.44
+
+def listar_carrinho(uid):
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM carrinho WHERE usuario_id=? ORDER BY adicionado_em DESC", (uid,)).fetchall()
+    itens=[]
+    for r in rows:
+        i=dict(r)
+        i["subtotal"]=round(PRECO_ANTIGO*i["quantidade"],2)
+        i["desconto"]=round((PRECO_ANTIGO-PRECO)*i["quantidade"],2)
+        i["total"]=round(PRECO*i["quantidade"],2)
+        itens.append(i)
+    return itens
+
+def adicionar_ao_carrinho(uid, produto_id, nome, preco, preco_antigo, quantidade=1):
+    with get_conn() as conn:
+        ex = conn.execute("SELECT id,quantidade FROM carrinho WHERE usuario_id=? AND produto_id=?", (uid, produto_id)).fetchone()
+        if ex:
+            conn.execute("UPDATE carrinho SET quantidade=? WHERE id=?", (ex["quantidade"]+quantidade, ex["id"]))
+        else:
+            conn.execute("""INSERT INTO carrinho (usuario_id,produto_id,nome,preco,preco_antigo,quantidade,adicionado_em)
+                VALUES (?,?,?,?,?,?,?)""", (uid, produto_id, nome, preco, preco_antigo, quantidade,
+                datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
+        conn.commit()
+
+def atualizar_quantidade_carrinho(uid, item_id, quantidade):
+    with get_conn() as conn:
+        if quantidade<=0: conn.execute("DELETE FROM carrinho WHERE id=? AND usuario_id=?", (item_id, uid))
+        else: conn.execute("UPDATE carrinho SET quantidade=? WHERE id=? AND usuario_id=?", (quantidade, item_id, uid))
+        conn.commit()
+
+def remover_do_carrinho(uid, item_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM carrinho WHERE id=? AND usuario_id=?", (item_id, uid))
+        conn.commit()
+
+def limpar_carrinho(uid):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM carrinho WHERE usuario_id=?", (uid,))
+        conn.commit()
+
+def total_itens_carrinho(uid):
+    with get_conn() as conn:
+        row = conn.execute("SELECT SUM(quantidade) as t FROM carrinho WHERE usuario_id=?", (uid,)).fetchone()
+    return row["t"] or 0
+
+def salvar_pedido(dados):
+    with get_conn() as conn:
+        conn.execute("""INSERT INTO pedidos (id,nome,email,telefone,cpf,quantidade,total,status,criado_em)
+            VALUES (:id,:nome,:email,:telefone,:cpf,:quantidade,:total,:status,:criado_em)""",
+            {**dados, "criado_em": datetime.now().strftime("%d/%m/%Y %H:%M:%S")})
+        conn.commit()
+
+def listar_pedidos():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM pedidos ORDER BY criado_em DESC").fetchall()
+    return [dict(r) for r in rows]
+
+def atualizar_status_pedido(pedido_id, novo_status):
+    with get_conn() as conn:
+        conn.execute("UPDATE pedidos SET status=? WHERE id=?", (novo_status, pedido_id))
+        conn.commit()
