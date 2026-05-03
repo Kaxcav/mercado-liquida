@@ -6,7 +6,9 @@ from database import (init_db, salvar_pedido, listar_pedidos, atualizar_status_p
     remover_do_carrinho, limpar_carrinho, total_itens_carrinho)
 import uuid, os, requests as req_lib
 
-app = Flask(__name__)
+import os as _os
+_tmpl = 'templates' if _os.path.isdir('templates') else '.'
+app = Flask(__name__, template_folder=_tmpl)
 app.secret_key = os.environ.get("SECRET_KEY", "troque-esta-chave-em-producao")
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
